@@ -1,0 +1,362 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mice Weighter Gif Version</title>
+
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            box-sizing: border-box;
+            background-color: #0f0c0f;
+            padding: 20px 30px;
+            margin: 20px 30px;
+            border-width: 30px;
+            border-style: solid;
+            border-image-source: url("./border.png");
+            border-image-slice: 50;
+        }
+
+        #tree {
+            margin: 20px;
+        }
+
+        .item {
+            margin-left: 20px;
+            padding: 5px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            margin-bottom: 5px;
+            cursor: pointer;
+        }
+
+        .children {
+            margin-left: 20px;
+        }
+
+        select {
+            margin-left: 10px;
+        }
+
+        button {
+            display: block;
+            margin: 20px;
+            padding: 10px 20px;
+            background-color: #333;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+
+            button:hover {
+                background-color: #8bc2c4;
+            }
+
+        h1.trait-type {
+            font-size: 20px;
+            color: #ba97c4;
+            cursor: pointer;
+        }
+
+        h2.trait {
+            font-size: 16px;
+            color: #d7f5f2;
+            padding-left: 30px;
+        }
+
+        h3 {
+            color: #ba97c4;
+            padding-left: 20px;
+            font-size: 24px;
+        }
+
+        #rarity-adjustments {
+            color: #ba97c4;
+        }
+
+        .changed {
+            border: 2px solid red; /* Visual feedback for changes */
+        }
+
+        #save-timestamp {
+            color: #ba97c4;
+            margin-top: 10px;
+        }
+    </style>
+</head>
+<body>
+    <h3>Mice Weighter Gif Version</h3>
+
+    <!-- Search Bar for Traits -->
+    <input type="text" id="search-bar" placeholder="Search traits...">
+
+    <div id="tree"></div>
+    <button onclick="submitChanges()">Submit Changes</button>
+
+    <div id="rarity-adjustments">
+        <h3>Adjust Rarity Weights</h3>
+        <div>
+            <label for="common-weight">Common: </label>
+            <input type="number" id="common-weight" value="20">
+        </div>
+        <div>
+            <label for="uncommon-weight">Uncommon: </label>
+            <input type="number" id="uncommon-weight" value="15">
+        </div>
+        <div>
+            <label for="rare-weight">Rare: </label>
+            <input type="number" id="rare-weight" value="10">
+        </div>
+        <div>
+            <label for="legendary-weight">Legendary: </label>
+            <input type="number" id="legendary-weight" value="7">
+        </div>
+        <div>
+            <label for="ultimate-weight">Ultimate: </label>
+            <input type="number" id="ultimate-weight" value="4">
+        </div>
+        <button id="save-weights">Save Weights</button>
+        <button id="reset-weights">Reset to Defaults</button>
+        <div id="save-timestamp">Last saved: Never</div>
+    </div>
+
+    <script>
+        const rarityTypes = ['Common', 'Uncommon', 'Rare', 'Legendary', 'Ultimate'];
+        let rarityWeights = {
+            'Common': 20,
+            'Uncommon': 15,
+            'Rare': 10,
+            'Legendary': 7,
+            'Ultimate': 4
+        };
+        const originalWeights = {};
+
+        document.addEventListener('DOMContentLoaded', () => {
+            loadWeightsFromStorage();
+            fetchFolderDataAndRenderTree();  // Load folder structure and render it
+        });
+
+        // Load weights from local storage
+        function loadWeightsFromStorage() {
+            const savedWeights = JSON.parse(localStorage.getItem('rarityWeights'));
+            if (savedWeights) {
+                rarityWeights = savedWeights;
+                for (const [key, value] of Object.entries(savedWeights)) {
+                    document.getElementById(`${key.toLowerCase()}-weight`).value = value;
+                }
+            }
+
+            document.getElementById('save-weights').addEventListener('click', saveWeights);
+            document.getElementById('reset-weights').addEventListener('click', resetWeights);
+        }
+
+        function saveWeights() {
+            if (!validateWeights()) {
+                alert('Rarity weights should be between 0 and 100.');
+                return;
+            }
+            rarityWeights['Common'] = parseInt(document.getElementById('common-weight').value);
+            rarityWeights['Uncommon'] = parseInt(document.getElementById('uncommon-weight').value);
+            rarityWeights['Rare'] = parseInt(document.getElementById('rare-weight').value);
+            rarityWeights['Legendary'] = parseInt(document.getElementById('legendary-weight').value);
+            rarityWeights['Ultimate'] = parseInt(document.getElementById('ultimate-weight').value);
+
+            localStorage.setItem('rarityWeights', JSON.stringify(rarityWeights));
+            updateSaveTimestamp();
+        }
+
+        function resetWeights() {
+            localStorage.removeItem('rarityWeights');
+            location.reload(); // Reload the page to reset inputs
+        }
+
+        // Validate weights to ensure they are between 0 and 100
+        function validateWeights() {
+            return Object.keys(rarityWeights).every(key => {
+                const weight = parseInt(document.getElementById(`${key.toLowerCase()}-weight`).value);
+                return weight >= 0 && weight <= 100;
+            });
+        }
+
+        // Update last save timestamp
+        function updateSaveTimestamp() {
+            const timestamp = new Date().toLocaleString();
+            document.getElementById('save-timestamp').textContent = `Last saved: ${timestamp}`;
+        }
+
+        // Search for traits by name
+        document.getElementById('search-bar').addEventListener('input', function (e) {
+            const searchTerm = e.target.value.toLowerCase();
+            const allTraits = document.querySelectorAll('.trait');  // Target all traits, not just the first level
+
+            allTraits.forEach(trait => {
+                const traitName = trait.querySelector('strong').textContent.toLowerCase();
+                if (traitName.includes(searchTerm)) {
+                    trait.style.display = 'block';
+                } else {
+                    trait.style.display = 'none';
+                }
+            });
+        });
+
+
+        // Fetch folder structure data from API and render the tree
+        function fetchFolderDataAndRenderTree() {
+            fetch('http://localhost:3000/folders')  // Replace with your actual API endpoint
+                .then(response => response.json())
+                .then(data => renderTree(data))
+                .catch(err => console.error('Failed to fetch folder structure:', err));
+        }
+
+        // Render tree structure from data
+        function renderTree(data) {
+            const tree = document.getElementById('tree');
+            tree.innerHTML = ''; // Clear any existing tree data
+            data.forEach(item => {
+                if (item.type === 'folder') {
+                    const h1 = document.createElement('h1');
+                    h1.classList.add('trait-type');
+                    h1.textContent = item.name;
+                    tree.appendChild(h1);
+
+                    const childrenContainer = document.createElement('div');
+                    childrenContainer.classList.add('children');
+                    childrenContainer.style.display = 'none';
+
+                    h1.addEventListener('click', () => {
+                        childrenContainer.style.display = childrenContainer.style.display === 'none' ? 'block' : 'none';
+                    });
+
+                    if (item.children && item.children.length > 0) {
+                        renderSubfolders(item.children, childrenContainer);
+                    }
+
+                    tree.appendChild(childrenContainer);
+                }
+            });
+        }
+
+        // Render subfolders for each folder
+        function renderSubfolders(subfolders, container) {
+            subfolders.forEach(subfolder => {
+                if (subfolder.type === 'folder') {
+                    const folderWeight = extractWeight(subfolder.name);
+
+                    if (folderWeight !== null) {
+                        const h2 = document.createElement('h2');
+                        h2.classList.add('trait');  // Ensures each trait has the "trait" class
+                        h2.innerHTML = `<strong>${subfolder.name}</strong> #${folderWeight}%`;
+
+                        originalWeights[subfolder.name] = folderWeight;
+
+                        const raritySelector = createRaritySelector(folderWeight);
+                        h2.appendChild(raritySelector);
+
+                        container.appendChild(h2);
+                    }
+                }
+            });
+        }
+
+        // Create a rarity selector for each folder
+        function createRaritySelector(originalWeight) {
+            const select = document.createElement('select');
+            rarityTypes.forEach(type => {
+                const option = document.createElement('option');
+                option.value = type;
+                option.textContent = type;
+
+                if (rarityWeights[type] === originalWeight) {
+                    option.selected = true;
+                }
+
+                select.appendChild(option);
+            });
+            select.addEventListener('change', updateRarityDisplay);
+            return select;
+        }
+
+        // Update the display when rarity is changed
+        function updateRarityDisplay(event) {
+            const selectedRarity = event.target.value;
+            const parentDiv = event.target.closest('.trait');
+            parentDiv.style.backgroundColor = getRarityColor(selectedRarity);
+        }
+
+        // Extract weight from folder name
+        function extractWeight(folderName) {
+            const match = folderName.match(/#(\d+)$/);
+            return match ? parseInt(match[1]) : null;
+        }
+
+        // Submit changes and update the server
+        function submitChanges() {
+            const folderItems = document.querySelectorAll('.trait');
+            let renameRequests = [];
+
+            folderItems.forEach(folderItem => {
+                const select = folderItem.querySelector('select');
+                if (select) {
+                    const selectedRarity = select.value;
+                    const currentFolderName = folderItem.querySelector('strong').textContent;
+                    const currentWeight = originalWeights[currentFolderName];
+                    const newWeight = rarityWeights[selectedRarity];
+
+                    if (currentWeight !== newWeight) {
+                        const updatedName = updateFolderNameWithWeight(currentFolderName, newWeight);
+                        renameRequests.push({
+                            oldName: currentFolderName,
+                            newName: updatedName
+                        });
+
+                        folderItem.querySelector('strong').textContent = updatedName;
+                        folderItem.classList.add('changed'); // Mark as changed
+                    }
+                }
+            });
+
+            if (renameRequests.length > 0) {
+                Promise.all(renameRequests.map(payload => {
+                    return fetch('http://localhost:3000/update-folder', {  // Replace with actual endpoint
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify(payload)
+                    });
+                }))
+                    .then(() => console.log('Folders renamed successfully!'))
+                    .catch(err => console.error('Error renaming folders:', err));
+            } else {
+                console.log('No changes to submit.');
+            }
+        }
+
+        // Update folder name with new weight
+        function updateFolderNameWithWeight(folderName, newWeight) {
+            return folderName.replace(/#\d+$/, `#${newWeight}`);
+        }
+
+        // Get color based on rarity
+        function getRarityColor(rarity) {
+            switch (rarity) {
+                case 'Common':
+                    return '#757575';
+                case 'Uncommon':
+                    return '#487548';
+                case 'Rare':
+                    return '#4a4875';
+                case 'Legendary':
+                    return '#674875';
+                case 'Ultimate':
+                    return '#878246';
+                default:
+                    return '#FFFFFF';
+            }
+        }
+
+    </script>
+</body>
+</html>
